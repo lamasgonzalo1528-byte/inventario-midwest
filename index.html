@@ -1233,6 +1233,16 @@ html.sol .consola label.campo > select{background:#fff;color:#000;border-bottom-
 .cr .op .num small{flex:1 1 100%;font-size:13px}
 .et-prev .e > div{flex:1;min-width:0;overflow:hidden}
 .et-prev .e canvas{width:44px!important;height:44px!important}
+.bloque-i.env{border-left:6px solid #1F5E8C}
+.lst b.env-q{display:block;font-family:var(--font);font-weight:700;font-size:15.5px;color:var(--azul-txt);text-align:left}
+.lst b.env-q span{font-weight:600;color:var(--gris);font-size:14px}
+.env-tarde{color:var(--nok)!important;font-weight:700}
+.et-hojas{display:flex;flex-direction:column;gap:12px;margin:4px 0 8px}
+.et-hoja{margin:0;background:#E8EDF2;border-radius:10px;padding:10px}
+.et-hoja img{display:block;width:100%;height:auto;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.18)}
+.et-hoja figcaption{font-size:13px;color:var(--gris);text-align:center;margin-top:6px}
+.et-una{display:flex;justify-content:center}
+.et-una img{width:100%;max-width:420px;height:auto;border-radius:6px;box-shadow:0 2px 12px rgba(0,0,0,.2)}
 
 </style>
 </head>
@@ -1575,15 +1585,33 @@ function iniciarFirma(b){
    - Planilla de Google: catálogo compartido entre celulares, movimientos, conteos y mail.
    ===================================================================== */
 const LS = 'inv_midwest_v1';
-const APP_VERSION = '1';
+const APP_VERSION = '2.2';
 const URL_APP_DEF = 'https://lamasgonzalo1528-byte.github.io/inventario-midwest/';
 const URL_APP = /^https:/.test(location.protocol) ? location.origin + location.pathname : URL_APP_DEF;
 const CATS = [
   {id:'comp', nombre:'Computación y electrónica', ico:'💻'},
   {id:'herr', nombre:'Herramientas y equipos', ico:'🔧'},
   {id:'ins',  nombre:'Insumos de oficina', ico:'📦'},
-  {id:'mueb', nombre:'Muebles y otros', ico:'🪑'}
+  {id:'mueb', nombre:'Muebles y otros', ico:'🪑'},
+  // Categorías de base (perfilaje). Las que no tienen ítems no aparecen en los filtros.
+  {id:'perf', nombre:'Perfilaje', ico:'🛢️'},
+  {id:'elec', nombre:'Eléctrico', ico:'⚡'},
+  {id:'cons', nombre:'Consumibles y lubricantes', ico:'🧴'},
+  {id:'rep',  nombre:'Repuestos y mantenimiento', ico:'⚙️'},
+  {id:'var',  nombre:'Varios', ico:'🗃️'}
 ];
+// Categorías nuevas que vienen de la planilla (gerencia puede escribir cualquiera)
+const normCat = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+function catPorNombre(nombre, crear){
+  const n = normCat(nombre); if (!n) return null;
+  let c = CATS.find(x => normCat(x.nombre) === n || x.id === nombre);
+  if (!c && crear){
+    c = {id:'c_' + n.replace(/[^a-z0-9]+/g, '_').slice(0, 30), nombre:String(nombre).trim(), ico:'📁'};
+    if (!CATS.some(x => x.id === c.id)) CATS.push(c);
+    if (typeof S !== 'undefined'){ S.catsExtra = [...new Set([...(S.catsExtra || []), c.nombre])]; }
+  }
+  return c;
+}
 const ESTADOS = ['Bueno', 'Regular', 'Malo', 'Fuera de servicio'];
 const UBIC_BASE = ['Oficina', 'Depósito', 'Taller', 'Camión'];
 const DESTINOS = ['Pozo / campo', 'Camión', 'Préstamo', 'Reparación', 'Otra base'];
@@ -1592,22 +1620,26 @@ const ALFA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 /* ================== Datos ================== */
 function normalizar(r){
-  const d = {version:1, items:[], movs:[], conteos:[], borrador:null, ubicaciones:[...UBIC_BASE], ultimo:{}, nube:null, cola:[], intervalo:30};
+  const d = {version:1, items:[], movs:[], conteos:[], envios:[], enviosRec:[], borrador:null, ubicaciones:[...UBIC_BASE], ultimo:{}, nube:null, cola:[], intervalo:30};
   if (r && typeof r === 'object'){
     if (Array.isArray(r.items)) d.items = r.items.filter(x => x && x.id);
     if (Array.isArray(r.movs)) d.movs = r.movs.slice(0, 600);
     if (Array.isArray(r.conteos)) d.conteos = r.conteos.slice(0, 30);
+    if (Array.isArray(r.envios)) d.envios = r.envios;
+    if (Array.isArray(r.enviosRec)) d.enviosRec = r.enviosRec;
     if (r.borrador) d.borrador = r.borrador;
     if (Array.isArray(r.ubicaciones) && r.ubicaciones.length) d.ubicaciones = r.ubicaciones;
     if (r.ultimo) d.ultimo = r.ultimo;
     if (r.nube) d.nube = r.nube;
     if (Array.isArray(r.cola)) d.cola = r.cola;
     if (+r.intervalo >= 1) d.intervalo = +r.intervalo;
+    if (Array.isArray(r.catsExtra)) d.catsExtra = r.catsExtra;
   }
   d.items.forEach(it => { it.cant = +it.cant || 0; it.min = +it.min || 0; if (!it.tipo) it.tipo = 'u'; if (!it.estado) it.estado = 'Bueno'; });
   return d;
 }
 let S = (() => { try{ return normalizar(JSON.parse(localStorage.getItem(LS) || 'null')); }catch(e){ return normalizar(null); } })();
+(S.catsExtra || []).forEach(n => catPorNombre(n, true));
 let tGuardar;
 function guardar(){ try{ localStorage.setItem(LS, JSON.stringify(S)); }catch(e){ toast('No hay más lugar en el celular para guardar.', true); } }
 function guardarPronto(){ clearTimeout(tGuardar); tGuardar = setTimeout(guardar, 400); }
@@ -1743,7 +1775,7 @@ function coincide(it){
   if (filtro.est !== 'baja' && it.baja) return false;
   if (filtro.est === 'baja' && !it.baja) return false;
   if (filtro.cat && it.cat !== filtro.cat) return false;
-  if (filtro.ubic && it.ubic !== filtro.ubic) return false;
+  if (filtro.ubic && !enLugar(it.ubic, filtro.ubic)) return false;
   if (filtro.est === 'afuera' && !it.afuera) return false;
   if (filtro.est === 'vencido' && !vencido(it)) return false;
   if (filtro.est === 'bajo' && !stockBajo(it)) return false;
@@ -1760,7 +1792,7 @@ function renderInv(){
       <button class="btn prim" id="q-scan" aria-label="Escanear código QR">📷</button></div>
     <div class="chips" role="group" aria-label="Categoría">
       <button class="chip" data-cat="" aria-pressed="${!filtro.cat}">Todo<span class="n">${act.length}</span></button>
-      ${CATS.map(c => `<button class="chip" data-cat="${c.id}" aria-pressed="${filtro.cat === c.id}">${c.ico} ${esc(c.nombre.split(' ')[0])}<span class="n">${cnt(c.id)}</span></button>`).join('')}
+      ${CATS.filter(c => cnt(c.id) || filtro.cat === c.id).map(c => `<button class="chip" data-cat="${c.id}" aria-pressed="${filtro.cat === c.id}">${c.ico} ${esc(c.nombre.split(' ')[0])}<span class="n">${cnt(c.id)}</span></button>`).join('')}
     </div>
     <div class="chips" role="group" aria-label="Filtro">
       ${[['', 'Todos'], ['afuera', '↗ Afuera'], ['vencido', '⏰ Vencidos'], ['bajo', '📉 Stock bajo'], ['mal', '⚠️ Para revisar'], ['baja', '🗑 De baja']].map(([k, t]) => `<button class="chip" data-est="${k}" aria-pressed="${filtro.est === k}">${t}</button>`).join('')}
@@ -1828,7 +1860,7 @@ function abrirFicha(id){
       const on = (sel, fn) => { const b = h.querySelector(sel); if (b) b.onclick = fn; };
       on('#f-sal', () => abrirSalida(id)); on('#f-dev', () => abrirDevolucion(id));
       on('#f-con', () => abrirStock(id, 'consumo')); on('#f-rep', () => abrirStock(id, 'reposicion'));
-      on('#f-ed', () => abrirForm(id)); on('#f-et', () => etiquetasPDF([it]));
+      on('#f-ed', () => abrirForm(id)); on('#f-et', () => verEtiquetas([it], 0));
       on('#f-enc', () => { delete it.falta; it.act = ahoraISO(); registrarMov({tipo:'aparecio', itemId:id, nota:'Apareció después del conteo'}, it); toast('Marcado como encontrado'); abrirFicha(id); });
       on('#f-baja', () => {
         if (!it.baja){ pedirConfirmacion(`¿Dar de baja "${it.nombre}"?`, 'Deja de aparecer en el inventario y en los conteos. Queda el historial y se puede volver a activar.', 'Dar de baja', () => {
@@ -1837,7 +1869,7 @@ function abrirFicha(id){
       });
     });
 }
-const MOV_TXT = {salida:'↗ Salida', devolucion:'↩ Devolución', consumo:'➖ Consumo', reposicion:'➕ Reposición', alta:'✨ Alta', baja:'🗑 Baja', ajuste:'📋 Ajuste en conteo', aparecio:'✓ Apareció', edicion:'✏️ Editado'};
+const MOV_TXT = {salida:'↗ Salida', devolucion:'↩ Devolución', consumo:'➖ Consumo', reposicion:'➕ Reposición', alta:'✨ Alta', baja:'🗑 Baja', ajuste:'📋 Ajuste en conteo', aparecio:'✓ Apareció', edicion:'✏️ Editado', recepcion:'📥 Recepción de envío'};
 function pedirConfirmacion(titulo, texto, boton, fn){
   abrirHoja(esc(titulo), `<p>${esc(texto)}</p><div class="pie-form"><button class="btn" id="cf-no">Cancelar</button><button class="btn peligro" id="cf-si">${esc(boton)}</button></div>`, h => {
     h.querySelector('#cf-no').onclick = cerrarHoja; h.querySelector('#cf-si').onclick = fn; });
@@ -1855,7 +1887,7 @@ function abrirForm(id, preset){
       <div class="ancho"><div class="seg" role="group" aria-label="Tipo">
         <button type="button" data-tipo="u" aria-pressed="${v.tipo === 'u'}">🔖 Unidad<br><small>tiene N° de serie, se presta</small></button>
         <button type="button" data-tipo="s" aria-pressed="${v.tipo === 's'}">📦 Stock<br><small>se cuenta y se gasta</small></button></div></div>
-      <label class="campo">Categoría<select id="fm-cat">${CATS.map(c => `<option value="${c.id}" ${c.id === v.cat ? 'selected' : ''}>${c.ico} ${esc(c.nombre)}</option>`).join('')}</select></label>
+      <label class="campo">Categoría<select id="fm-cat">${CATS.map(c => `<option value="${c.id}" ${c.id === v.cat ? 'selected' : ''}>${c.ico} ${esc(c.nombre)}</option>`).join('')}<option value="__nueva">➕ Otra…</option></select></label>
       <label class="campo">Ubicación<select id="fm-ubic">${sel(S.ubicaciones, v.ubic)}<option value="__nueva">➕ Otra…</option></select></label>
       <label class="campo s-only">Cantidad<input id="fm-cant" type="number" inputmode="numeric" min="0" value="${v.cant}"></label>
       <label class="campo s-only">Pedir con (mínimo)<input id="fm-min" type="number" inputmode="numeric" min="0" value="${v.min}"></label>
@@ -1876,6 +1908,10 @@ function abrirForm(id, preset){
         h.querySelectorAll('[data-tipo]').forEach(b => b.setAttribute('aria-pressed', b.dataset.tipo === tipo)); };
       h.querySelectorAll('[data-tipo]').forEach(b => b.onclick = () => { tipo = b.dataset.tipo; if (tipo === 's' && h.querySelector('#fm-cat').value === 'comp') h.querySelector('#fm-cat').value = 'ins'; ver(); });
       ver();
+      h.querySelector('#fm-cat').onchange = e => { if (e.target.value !== '__nueva') return;
+        const n = (prompt('Nombre de la categoría nueva (ej.: Izaje, Seguridad):') || '').trim();
+        const c = n ? catPorNombre(n, true) : null; if (c) guardar();
+        e.target.innerHTML = CATS.map(x => `<option value="${x.id}" ${x.id === (c ? c.id : v.cat) ? 'selected' : ''}>${x.ico} ${esc(x.nombre)}</option>`).join('') + '<option value="__nueva">➕ Otra…</option>'; };
       h.querySelector('#fm-ubic').onchange = e => { if (e.target.value !== '__nueva') return;
         const n = (prompt('Nombre de la ubicación nueva (ej.: Armario 2, Depósito Susques):') || '').trim();
         if (n && !S.ubicaciones.includes(n)){ S.ubicaciones.push(n); guardar(); }
@@ -1982,6 +2018,66 @@ function abrirStock(id, tipo){
     });
 }
 
+/* ================== Recepción de envíos ================== */
+function abrirRecepcion(envId){
+  const e = (S.envios || []).find(x => x.id === envId); if (!e){ toast('Ese envío ya no está en camino.', true); return; }
+  const mismo = t => sinTilde(t).replace(/\s+/g, ' ');
+  const esStock = /^stock/i.test(e.tipo || '') || (!e.tipo && e.cant > 1 && !e.serie);
+  // ¿A qué ítem se suma? Por código, por N° de serie, o un insumo con el mismo nombre
+  const cand = [itemById(e.codigo), e.serie && S.items.find(x => x.serie && mismo(x.serie) === mismo(e.serie)),
+    ...activos().filter(x => x.tipo === 's' && mismo(x.nombre) === mismo(e.que))].filter(Boolean).filter((x, i, a) => a.indexOf(x) === i);
+  const ubics = [...S.ubicaciones]; if (e.para && !ubics.includes(e.para)) ubics.push(e.para);
+  const ubDef = e.para || (cand[0] && cand[0].ubic) || S.ultimo.ubic || 'Oficina';
+  let estado = 'Bueno';
+  abrirHoja('📥 Recibir envío', `
+    <div class="situ afuera"><b>${esc(e.que)}${e.cant > 1 ? ` × ${e.cant}${e.um ? ' ' + esc(e.um) : ''}` : ''}</b>${['Desde ' + esc(e.desde || '?'), e.fecha ? 'salió el ' + fmtFecha(e.fecha) : '', e.transporte ? esc(e.transporte) : '', e.guia ? 'guía ' + esc(e.guia) : ''].filter(Boolean).join(' · ')}${e.nota ? `<br><i>${esc(e.nota)}</i>` : ''}</div>
+    <form class="form" autocomplete="off">
+      <label class="campo ancho">Entra al inventario como<select id="rc-dest">${cand.map(x => `<option value="${x.id}">Se suma a: ${esc(x.nombre)} (${x.id}${x.tipo === 's' ? ' · hay ' + x.cant : ''})</option>`).join('')}<option value="__nuevo">➕ Ítem nuevo${!esStock && e.cant > 1 ? ` (${e.cant} unidades, una etiqueta cada una)` : ''}</option></select></label>
+      <label class="campo">¿Cuántos llegaron?<input id="rc-cant" type="number" inputmode="numeric" min="0" value="${e.cant}"></label>
+      <label class="campo">Queda en<select id="rc-ubic">${ubics.map(u => `<option ${u === ubDef ? 'selected' : ''}>${esc(u)}</option>`).join('')}</select></label>
+      <div class="ancho"><span class="sub">¿Cómo llegó?</span><div class="seg" id="rc-est">${ESTADOS.map(x => `<button type="button" data-e="${x}" aria-pressed="${x === estado}">${x}</button>`).join('')}</div></div>
+      <label class="campo ancho">Lo recibe<input id="rc-quien" list="nombres" value="${esc(S.ultimo.quien || '')}" autocapitalize="words"></label>
+      <label class="campo ancho">Nota<input id="rc-nota" placeholder="Ej.: caja golpeada, faltó el cargador"></label>${datalistNombres()}
+    </form>
+    <p class="sub" id="rc-aviso" style="margin:8px 0 0"></p>
+    <div class="pie-form"><button class="btn" id="rc-x">Cancelar</button><button class="btn prim" id="rc-ok">✓ Recibido</button></div>`, h => {
+      const aviso = () => { const n = +h.querySelector('#rc-cant').value || 0;
+        h.querySelector('#rc-aviso').innerHTML = n < e.cant ? `<b style="color:var(--nok)">Faltan ${e.cant - n}.</b> Queda anotado en la planilla como "Recibido con faltante".` : ''; };
+      h.querySelector('#rc-cant').oninput = aviso;
+      h.querySelectorAll('[data-e]').forEach(b => b.onclick = () => { estado = b.dataset.e; h.querySelectorAll('[data-e]').forEach(x => x.setAttribute('aria-pressed', x === b)); });
+      h.querySelector('#rc-x').onclick = cerrarHoja;
+      h.querySelector('#rc-ok').onclick = () => {
+        const n = Math.max(0, parseInt(h.querySelector('#rc-cant').value, 10) || 0), dest = h.querySelector('#rc-dest').value;
+        const ubic = h.querySelector('#rc-ubic').value, quien = h.querySelector('#rc-quien').value.trim(), nota = h.querySelector('#rc-nota').value.trim();
+        if (!quien){ toast('Poné quién lo recibe.', true); h.querySelector('#rc-quien').focus(); return; }
+        if (!n && !confirm('¿No llegó nada? Se marca como recibido con faltante.')) return;
+        if (!S.ubicaciones.includes(ubic)) S.ubicaciones.push(ubic);
+        recordarNombre(quien); S.ultimo.quien = S.ultimo.quien || quien;
+        const det = `desde ${e.desde || '?'}${e.guia ? ' · guía ' + e.guia : ''}`, ahora = ahoraISO(), creados = [];
+        let it;
+        if (dest !== '__nuevo'){
+          it = itemById(dest);
+          if (it.tipo === 's') it.cant += n; else { it.afuera = null; delete it.falta; }
+          it.ubic = ubic; it.estado = estado; it.act = ahora; it.baja = false;
+        } else {
+          const cat = (catPorNombre(e.cat, true) || CATS[esStock ? 2 : 3]).id;
+          const k = esStock ? 1 : Math.max(1, n);
+          for (let i = 0; i < k; i++){
+            const x = {id:nuevoId(), nombre:e.que, cat, tipo:esStock ? 's' : 'u', cant:esStock ? n : 1, min:0, um:esStock ? (e.um || '') : '', marca:'',
+              serie:!esStock && k === 1 ? (e.serie || '') : '', ubic, estado, resp:'', nota:`Llegó ${det}`, alta:ahora, act:ahora};
+            S.items.push(x); creados.push(x);
+          }
+          it = creados[0];
+        }
+        S.envios = S.envios.filter(x => x.id !== e.id); S.enviosRec = [...(S.enviosRec || []), e.id];
+        registrarMov({tipo:'recepcion', itemId:it.id, cant:creados.length > 1 ? 1 : n, quien, destino:det, nota:[nota, n < e.cant ? `llegaron ${n} de ${e.cant}` : ''].filter(Boolean).join(' · '), envioId:e.id, cantRecibida:n}, it);
+        creados.slice(1).forEach(x => registrarMov({tipo:'recepcion', itemId:x.id, cant:1, quien, destino:det}, x));
+        toast(creados.length ? `📥 Recibido: ${creados.length > 1 ? creados.length + ' ítems nuevos' : it.nombre}. Imprimí ${creados.length > 1 ? 'sus etiquetas' : 'su etiqueta'} (Ajustes).` : `📥 Recibido: ${it.nombre}`);
+        render(); abrirFicha(it.id);
+      };
+    });
+}
+
 /* ================== Escáner QR ================== */
 let escaner = null;
 function idDeTexto(t){
@@ -2049,7 +2145,9 @@ function manejarCodigo(id, modo){
 }
 
 /* ================== Conteo ================== */
-function conteoItems(b){ return activos().filter(it => !b.lugar || b.lugar === 'Todo' || it.ubic === b.lugar); }
+// "Salta" incluye también "Salta · Cajón asiento" y los demás lugares de adentro
+const enLugar = (ubic, lugar) => !lugar || ubic === lugar || String(ubic || '').startsWith(lugar + ' · ');
+function conteoItems(b){ return activos().filter(it => !b.lugar || b.lugar === 'Todo' || enLugar(it.ubic, b.lugar)); }
 function filaC(id){ const b = S.borrador; return b.filas[id] || (b.filas[id] = {r:'', cant:'', estado:''}); }
 function resConteo(){
   const b = S.borrador; if (!b) return {total:0, hechos:0};
@@ -2102,7 +2200,7 @@ function renderConteo(){
       <div class="consola datos-pm">
         <div class="consola-t ancho">Nuevo conteo</div>
         <label class="campo">Quién lo hace<input id="cn-quien" list="nombres" value="${esc(S.ultimo.quien || '')}" autocapitalize="words"></label>
-        <label class="campo">Qué se cuenta<select id="cn-lugar"><option value="Todo">Todo el inventario (${activos().length})</option>${S.ubicaciones.map(u => `<option value="${esc(u)}">Solo ${esc(u)} (${activos().filter(x => x.ubic === u).length})</option>`).join('')}</select></label>
+        <label class="campo">Qué se cuenta<select id="cn-lugar"><option value="Todo">Todo el inventario (${activos().length})</option>${S.ubicaciones.map(u => `<option value="${esc(u)}">Solo ${esc(u)} (${activos().filter(x => enLugar(x.ubic, u)).length})</option>`).join('')}</select></label>
       </div>${datalistNombres()}
       <p><button class="btn prim ancho grande" id="cn-ok" ${activos().length ? '' : 'disabled'}>📋 Empezar conteo</button></p>
       ${ult ? `<div class="bloque-i"><h3>Conteos anteriores</h3><ul class="ants">${S.conteos.slice(0, 8).map(c => `<li><div class="ant-t"><b>${fmtFecha(c.fecha)}</b> ${esc(c.quien)}<small>${c.res.esta}/${c.res.total} encontrados${c.res.faltan ? `, ${c.res.faltan} faltan` : ''}${c.res.bajos ? `, ${c.res.bajos} stock bajo` : ''}</small></div>
@@ -2320,9 +2418,74 @@ function etiquetasPDF(items, saltar){
     doc.setDrawColor(210); doc.setLineWidth(0.1); doc.rect(x + 0.6, y + 0.6, EW - 1.2, EH - 1.2);
     pos++;
   });
-  const hoy = hoyLocal(); items.forEach(it => { it.etiq = hoy; }); guardar();
-  const a = pdfArchivo(doc, `Etiquetas_QR_${hoy}`);
-  descargarBytes(a.nombre, a.bytes, a.mime).then(ok => ok && toast(`PDF con ${items.length} etiqueta${items.length > 1 ? 's' : ''} descargado. Imprimilo en hojas A4 de 24 etiquetas (3 × 8) o en papel común y recortá.`));
+  return doc;
+}
+
+/* ---- Vista previa de las etiquetas (se ve en pantalla, se comparte y, si querés, se descarga) ---- */
+let LOGO_IMG = null;
+function logoImg(){ if (!LOGO_IMG){ LOGO_IMG = new Image(); LOGO_IMG.src = LOGO_PNG; } return LOGO_IMG.decode ? LOGO_IMG.decode().then(() => LOGO_IMG, () => LOGO_IMG) : Promise.resolve(LOGO_IMG); }
+function lineasTexto(cx, txt, ancho, max){
+  const pal = String(txt || '').split(/\s+/), out = []; let l = '';
+  pal.forEach(w => { const t = l ? l + ' ' + w : w; if (cx.measureText(t).width > ancho && l){ out.push(l); l = w; } else l = t; });
+  if (l) out.push(l);
+  if (out.length > max){ out.length = max; out[max - 1] = out[max - 1].replace(/.{0,2}$/, '…'); }
+  return out;
+}
+// Dibuja una etiqueta (70 × 37 mm) en un canvas, con k píxeles por mm, en la posición x, y (mm)
+function dibujarEtiquetaCanvas(cx, it, x, y, k, logo){
+  const EW = 70, EH = 37.125, P = v => v * k;
+  cx.fillStyle = '#fff'; cx.fillRect(P(x), P(y), P(EW), P(EH));
+  cx.strokeStyle = '#d2d2d2'; cx.lineWidth = Math.max(1, k * 0.15); cx.strokeRect(P(x + 0.6), P(y + 0.6), P(EW - 1.2), P(EH - 1.2));
+  const m = qrMatriz(URL_APP + '#i=' + it.id), lado = 28, s = lado / m.n;
+  cx.fillStyle = '#000';
+  for (let r = 0; r < m.n; r++) for (let c = 0; c < m.n; c++) if (m.ok(r, c)) cx.fillRect(Math.floor(P(x + 3.5 + c * s)), Math.floor(P(y + 4.5 + r * s)), Math.ceil(P(s)) + 0.5, Math.ceil(P(s)) + 0.5);
+  const tx = x + 34;
+  if (logo && logo.naturalWidth) cx.drawImage(logo, P(tx), P(y + 4.5), P(9), P(9 * LOGO_H / LOGO_W));
+  cx.fillStyle = '#000'; cx.textBaseline = 'alphabetic';
+  cx.font = `bold ${P(3.7)}px "Courier New", monospace`; cx.fillText(it.id, P(tx), P(y + 18));
+  cx.fillStyle = '#141414'; cx.font = `bold ${P(2.8)}px Arial, sans-serif`;
+  lineasTexto(cx, it.nombre, P(EW - 37), 2).forEach((l, i) => cx.fillText(l, P(tx), P(y + 22.5 + i * 3.4)));
+  cx.fillStyle = '#5a5a5a'; cx.font = `${P(2.3)}px Arial, sans-serif`;
+  cx.fillText(String(it.serie ? 'N° ' + it.serie : catDe(it.cat).nombre).slice(0, 34), P(tx), P(y + 31));
+}
+// Hojas A4 (3 × 8) como imágenes, igual que el PDF
+async function hojasEtiquetas(items, saltar, k){
+  const logo = await logoImg(), hojas = []; let cv = null, cx = null, pos = saltar || 0;
+  const nueva = () => { cv = document.createElement('canvas'); cv.width = 210 * k; cv.height = 297 * k; cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height); hojas.push(cv); };
+  nueva();
+  items.forEach(it => { if (pos >= 24){ nueva(); pos = 0; } dibujarEtiquetaCanvas(cx, it, (pos % 3) * 70, Math.floor(pos / 3) * 37.125, k, logo); pos++; });
+  return hojas;
+}
+async function imagenEtiqueta(it){
+  const k = 12, logo = await logoImg(), cv = document.createElement('canvas'); cv.width = 70 * k; cv.height = Math.round(37.125 * k);
+  dibujarEtiquetaCanvas(cv.getContext('2d'), it, 0, 0, k, logo);
+  const b = await new Promise(r => cv.toBlob(r, 'image/png'));
+  return {nombre:`Etiqueta_${it.id}.png`, bytes:new Uint8Array(await b.arrayBuffer()), mime:'image/png'};
+}
+async function verEtiquetas(items, saltar){
+  if (!items.length){ toast('Elegí al menos un ítem.', true); return; }
+  const uno = items.length === 1, hoy = hoyLocal();
+  const nombre = uno ? `Etiqueta_${items[0].id}` : `Etiquetas_QR_${hoy}`;
+  let pdf = null; const armarPDF = () => pdf || (pdf = pdfArchivo(etiquetasPDF(items, saltar), nombre));
+  const marcar = () => { items.forEach(it => { it.etiq = hoy; }); guardar(); };
+  const hojas = uno ? [] : await hojasEtiquetas(items, saltar, 5);
+  const imgs = hojas.map((c, i) => `<figure class="et-hoja"><img src="${c.toDataURL('image/png')}" alt="Hoja ${i + 1} de etiquetas">${hojas.length > 1 ? `<figcaption>Hoja ${i + 1} de ${hojas.length}</figcaption>` : ''}</figure>`).join('');
+  let unaImg = '';
+  if (uno){ const c = document.createElement('canvas'), k = 8; c.width = 70 * k; c.height = Math.round(37.125 * k); dibujarEtiquetaCanvas(c.getContext('2d'), items[0], 0, 0, k, await logoImg()); unaImg = c.toDataURL('image/png'); }
+  abrirHoja(uno ? '🏷️ Etiqueta QR' : `🏷️ ${items.length} etiquetas QR`, `
+    ${uno ? `<div class="et-una"><img src="${unaImg}" alt="Etiqueta de ${esc(items[0].nombre)}"></div>
+      <p class="sub" style="text-align:center;margin:6px 0 4px">Mide 70 × 37 mm. Se imprime sola o en una hoja A4 de 24 etiquetas.</p>` : `<p class="sub" style="margin-top:0">${hojas.length} hoja${hojas.length > 1 ? 's' : ''} A4 de 24 etiquetas (3 × 8, 70 × 37 mm). También sirve papel común: se recorta y se pega con cinta.</p>`}
+    ${uno ? '' : `<div class="et-hojas">${imgs}</div>`}
+    <div class="exp-grupo">Compartir</div>
+    <div class="exp-fila"><button type="button" class="btn prim" id="ev-pdf">📤 PDF</button>${uno ? `<button type="button" class="btn prim" id="ev-png">📤 Imagen</button>` : ''}</div>
+    <small class="exp-nota">Abre el menú Compartir del celular: WhatsApp, mail, Drive o una impresora.</small>
+    <div class="exp-grupo">Descargar (opcional)</div>
+    <div class="exp-fila"><button type="button" class="btn" id="ev-dl">⬇️ Descargar PDF</button>${uno ? `<button type="button" class="btn" id="ev-dlp">⬇️ Imagen</button>` : ''}</div>`, h => {
+      h.querySelector('#ev-pdf').onclick = async () => { const a = armarPDF(); if (await compartir([a], uno ? `Etiqueta QR ${items[0].id} · ${items[0].nombre}` : `Etiquetas QR · ${items.length}`)) marcar(); };
+      h.querySelector('#ev-dl').onclick = async () => { const a = armarPDF(); if (await descargarBytes(a.nombre, a.bytes, a.mime)){ marcar(); toast('PDF descargado'); } };
+      const bp = h.querySelector('#ev-png'); if (bp) bp.onclick = async () => { const a = await imagenEtiqueta(items[0]); if (await compartir([a], `Etiqueta QR ${items[0].id} · ${items[0].nombre}`)) marcar(); };
+      const bd = h.querySelector('#ev-dlp'); if (bd) bd.onclick = async () => { const a = await imagenEtiqueta(items[0]); if (await descargarBytes(a.nombre, a.bytes, a.mime)){ marcar(); toast('Imagen descargada'); } };
+    });
 }
 function abrirEtiquetas(){
   let marcados = new Set(activos().filter(x => !x.etiq).map(x => x.id));
@@ -2342,13 +2505,13 @@ function abrirEtiquetas(){
     <div class="chips" style="margin-top:10px"><button class="chip" id="et-sin">Sin etiqueta</button><button class="chip" id="et-todo">Todos</button><button class="chip" id="et-nada">Ninguno</button></div>
     <div class="sel-l" id="et-l"></div>
     <label class="campo">Empezar en la etiqueta N° (si la hoja ya está usada)<input id="et-pos" type="number" min="1" max="24" value="1" style="min-height:44px;font:inherit;padding:6px 10px;border:1.5px solid var(--linea);border-radius:10px;background:var(--hoja);color:var(--tinta)"></label>
-    <div class="pie-form"><span id="et-n" style="align-self:center;flex:1;color:var(--gris)"></span><button class="btn prim" id="et-ok">📄 Armar PDF</button></div>`, h => {
+    <div class="pie-form"><span id="et-n" style="align-self:center;flex:1;color:var(--gris)"></span><button class="btn prim" id="et-ok">👁️ Ver etiquetas</button></div>`, h => {
       pintar(h);
       h.querySelector('#et-l').onchange = e => { const i = e.target.dataset.i; if (!i) return; e.target.checked ? marcados.add(i) : marcados.delete(i); pintar(h); };
       h.querySelector('#et-sin').onclick = () => { marcados = new Set(activos().filter(x => !x.etiq).map(x => x.id)); pintar(h); };
       h.querySelector('#et-todo').onclick = () => { marcados = new Set(activos().map(x => x.id)); pintar(h); };
       h.querySelector('#et-nada').onclick = () => { marcados = new Set(); pintar(h); };
-      h.querySelector('#et-ok').onclick = () => etiquetasPDF(activos().filter(x => marcados.has(x.id)).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')), Math.max(0, Math.min(23, (+h.querySelector('#et-pos').value || 1) - 1)));
+      h.querySelector('#et-ok').onclick = () => verEtiquetas(activos().filter(x => marcados.has(x.id)).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')), Math.max(0, Math.min(23, (+h.querySelector('#et-pos').value || 1) - 1)));
     });
 }
 
@@ -2497,12 +2660,20 @@ async function traerCatalogo(forzar){
     if (j.version) n.vs = j.version;
     if (j.conteo !== undefined){ const antes = JSON.stringify(n.ultConteo || null); n.ultConteo = j.conteo; if (antes !== JSON.stringify(j.conteo || null)){ guardar(); if (tab === 'inicio') renderInicio(); } }
     if (j.igual) return;
+    if (Array.isArray(j.envios)){
+      const ids = new Set(j.envios.map(e => e.id));
+      S.enviosRec = (S.enviosRec || []).filter(id => ids.has(id));          // ya confirmados en la planilla: se olvidan
+      const antes = (S.envios || []).map(e => e.id).join();
+      S.envios = j.envios.filter(e => !S.enviosRec.includes(e.id));
+      const nuevosEnv = S.envios.filter(e => !antes.split(',').includes(e.id));
+      if (nuevosEnv.length && antes !== '') toast(`🚚 ${nuevosEnv.length === 1 ? 'Viene en camino: ' + nuevosEnv[0].que : nuevosEnv.length + ' envíos nuevos en camino'}`);
+    }
     const remotos = j.items || [], porId = new Map(remotos.map(r => [r.id, r]));
     const locales = new Map(S.items.map(x => [x.id, x]));
     const nuevos = [];
     let cambios = 0;
     remotos.forEach(r => {
-      const l = locales.get(r.id), catId = (CATS.find(c => sinTilde(c.nombre) === sinTilde(r.cat)) || CATS[3]).id;
+      const l = locales.get(r.id), catId = (catPorNombre(r.cat, true) || CATS[3]).id;
       const x = {...(l || {}), id:r.id, nombre:r.nombre || (l && l.nombre) || r.id, cat:catId, tipo:/^stock/i.test(r.tipo) ? 's' : 'u', marca:r.marca || '', serie:r.serie || '', ubic:r.ubic || '',
         cant:+r.cant || 0, min:+r.min || 0, um:r.um || '', estado:ESTADOS.includes(r.estado) ? r.estado : 'Bueno', resp:r.resp || '', nota:r.nota || '',
         afuera:r.afuera && r.afuera.quien ? r.afuera : null, baja:!!r.baja, alta:r.alta || (l && l.alta) || '', act:r.act || '', fotoUrl:r.fotoUrl || (l && l.fotoUrl) || '', sinc:true};
@@ -2552,8 +2723,16 @@ function novedadesHTML(){
       <span class="nv-q">${esc(x.quien || 'gerencia')} · ${fmtFH(x.cuando)}</span></li>`).join('')}</ul>
     <div class="fila-b"><button class="btn" id="nov-vistas" type="button">✓ Marcar como vistas</button>${n.urlPlanilla ? `<a class="btn" href="${esc(n.urlPlanilla)}" target="_blank" rel="noopener">Abrir la planilla</a>` : ''}</div></div>`;
 }
-function conectarNovedades(){ const b = $('#nov-vistas'); if (b) b.onclick = () => { S.nube.sinLeer = 0; guardar(); render(); }; }
-const listaPendHTML = () => '';
+function conectarNovedades(){ document.querySelectorAll('[data-rec]').forEach(b => b.onclick = () => abrirRecepcion(b.dataset.rec)); const b = $('#nov-vistas'); if (b) b.onclick = () => { S.nube.sinLeer = 0; guardar(); render(); }; }
+// Envíos que cargaron en la planilla (por ejemplo, desde Mendoza) y todavía no llegaron
+const listaPendHTML = () => {
+  const l = (nubeActiva() || window.DEMO) ? (S.envios || []) : []; if (!l.length) return '';
+  return `<div class="bloque-i env"><h3>🚚 En camino <span class="badge">${l.length}</span></h3><ul class="lst">${l.map(e => `<li class="af">
+    <div class="af-tx"><b class="env-q">${esc(e.que)}${e.cant > 1 ? ` <span>× ${e.cant}${e.um ? ' ' + esc(e.um) : ''}</span>` : ''}</b>
+      <small>${['desde ' + esc(e.desde || '?'), e.transporte ? esc(e.transporte) : '', e.guia ? 'guía ' + esc(e.guia) : '', e.envio ? 'lo mandó ' + esc(e.envio) : ''].filter(Boolean).join(' · ')}</small>
+      ${e.llega ? `<small class="${e.llega < hoyLocal() ? 'env-tarde' : ''}">${e.llega < hoyLocal() ? '⏰ Tenía que llegar' : 'Llega aprox.'} ${fmtFecha(e.llega)}</small>` : ''}</div>
+    <div class="af-ac"><button class="btn prim mini" data-rec="${esc(e.id)}">📥 Recibir</button></div></li>`).join('')}</ul></div>`;
+};
 const sinTilde = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
 
 // Cuándo se sincroniza: al abrir, al volver a la app, al recuperar señal y cada 5 minutos

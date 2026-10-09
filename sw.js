@@ -2,7 +2,7 @@
 // Guarda la app en el celular para que abra sin señal.
 // Cada vez que subas una versión nueva, cambiá el número de VERSION: así los celulares
 // se enteran, bajan la nueva y le muestran al usuario el botón "Actualizar".
-const VERSION = 'inventario-v1';
+const VERSION = 'inventario-v4';
 const ARCHIVOS = [
   './',
   'index.html',
