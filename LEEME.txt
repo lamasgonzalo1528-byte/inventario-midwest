@@ -1,0 +1,54 @@
+INVENTARIO OFICINA - MIDWEST (app para celular)
+===============================================
+
+Esta carpeta es la app completa. Son 8 archivos y van todos juntos:
+  index.html               la app
+  manifest.webmanifest     nombre, ícono y colores de la app
+  sw.js                    hace que abra sin señal y avisa cuando hay versión nueva
+  icon-192.png, icon-512.png, icon-maskable-512.png, apple-touch-icon.png, favicon-32.png   íconos
+
+SUBIRLA A INTERNET (una sola vez, igual que el Check List)
+----------------------------------------------------------
+1. Entrá a https://github.com con tu cuenta (lamasgonzalo1528-byte).
+2. Arriba a la derecha: "+" > "New repository".
+   - Repository name:  inventario-midwest      <-- EXACTAMENTE este nombre
+     (las etiquetas QR llevan esta dirección adentro; si el nombre cambia, la cámara no abre la ficha)
+   - Marcá "Public" > "Create repository".
+3. Tocá el link "uploading an existing file".
+4. Arrastrá los 8 archivos (los archivos, no la carpeta) > "Commit changes".
+5. "Settings" > "Pages": Source "Deploy from a branch", Branch "main" y "/ (root)" > "Save".
+6. En 1 o 2 minutos la app queda en:
+      https://lamasgonzalo1528-byte.github.io/inventario-midwest/
+
+INSTALARLA EN EL CELULAR
+------------------------
+Android: abrí la dirección en Chrome > en la app, Ajustes > "Instalar".
+iPhone:  abrí la dirección en Safari > botón Compartir > "Agregar a inicio".
+
+CONECTARLA CON LA PLANILLA
+--------------------------
+Ver LEEME_planilla.txt (se hace una sola vez, desde la compu).
+Después, en cada celular: Ajustes > Planilla de Google > pegar la dirección /exec y la clave INV-… > "Probar conexión".
+
+CÓMO SE USA (resumen)
+---------------------
+- Agregar: Inicio > "Agregar". Nombre, categoría, ubicación y una foto.
+  "Unidad" = cosas con N° de serie que se prestan (notebook, taladro).
+  "Stock"  = cosas que se cuentan y se gastan (resmas, tóner). Tienen "Pedir con" (mínimo).
+- Etiquetas QR: Ajustes > Etiquetas QR > Armar PDF. Hojas A4 de 24 etiquetas (3 x 8, 70 x 37 mm)
+  o papel común para recortar. Si la hoja ya está usada, elegí desde qué etiqueta empezar.
+- Escanear: Inicio > "Escanear", o con la cámara común del celular (abre la ficha directo).
+- Salida / devolución: en la ficha del ítem. Si no vuelve a tiempo, aparece "Vencido".
+- Consumo / reposición: en la ficha de los ítems de stock.
+- Conteo: pestaña Conteo > Empezar. Escaneás o marcás "Está / No está" y la cantidad de cada insumo.
+  Al terminar se firma, se guarda, y se manda el PDF y el Excel (WhatsApp o mail automático).
+
+CUANDO HAYA UNA VERSIÓN NUEVA
+-----------------------------
+GitHub > inventario-midwest > "Add file" > "Upload files" > arrastrá index.html y sw.js > "Commit changes".
+Los celulares muestran "Hay una versión nueva > Actualizar". Los datos no se pierden.
+
+IMPORTANTE
+----------
+- Sin planilla, cada celular guarda su propio inventario. Con la planilla conectada, todos ven lo mismo.
+- No borres los datos del sitio en Chrome. Exportá un respaldo de vez en cuando (Ajustes > Respaldo).
